@@ -1,0 +1,4 @@
+keras
+pandas
+pyarrow
+tensorflow
