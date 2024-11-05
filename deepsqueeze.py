@@ -89,7 +89,7 @@ def decompress(file, check, delimiter, output, **kwargs):
             print(f'Columns exceeding {error} error:\n{diffs.any()}')
 
     range_ = pd.read_csv(f'{out}/range.csv')
-    X_ = (X_ + range_.iloc[0]) * (range_.iloc[1] - range_.iloc[0] + EPS)
+    X_ = X_ * (range_.iloc[1] - range_.iloc[0] + EPS) + range_.iloc[0]
     X_.to_csv(out[1:] if output is None else output, index=False)
     os.system(f'rm -rf {out}')
 
