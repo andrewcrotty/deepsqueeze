@@ -4,14 +4,11 @@ import os
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-import sys
-
-EPS = sys.float_info.epsilon
 
 def scale(df):
-    range_ = df.agg(['min', 'max'])
-    df = (df - range_.iloc[0]) / (range_.iloc[1] - range_.iloc[0] + EPS)
-    return df, range_
+    minmax = df.agg(['min', 'max'])
+    df = (df - minmax.iloc[0]) / (minmax.iloc[1] - minmax.iloc[0]).fillna(0.0)
+    return df, minmax
 
 def to_parquet(df, file, compression, level):
     pq.write_table(pa.Table.from_pandas(df, preserve_index=False), file,
@@ -26,8 +23,8 @@ def compress(file, batch, compression, delimiter, error, epochs, level, loss,
     os.system(f'rm -rf {out} && mkdir {out}')
     pd.DataFrame([error]).to_csv(f'{out}/error.csv', index=False)
 
-    X, range_ = scale(pd.read_csv(file, sep=delimiter))
-    range_.to_csv(f'{out}/range.csv', index=False)
+    X, minmax = scale(pd.read_csv(file, sep=delimiter))
+    minmax.to_csv(f'{out}/minmax.csv', index=False)
 
     encoder = keras.Sequential([
                   keras.Input((X.shape[1],)),
@@ -46,7 +43,7 @@ def compress(file, batch, compression, delimiter, error, epochs, level, loss,
     autoencoder.fit(X, X, batch_size=batch, epochs=epochs)
     decoder.save(f'{out}/decoder.keras')
 
-    prev = sys.maxsize
+    prev = os.path.getsize(file)
     for i in range(10):
         Z = encoder.predict(X).round(i)
         codes = pd.DataFrame(Z * 10.0 ** i).astype(int)
@@ -88,8 +85,8 @@ def decompress(file, check, delimiter, output, **kwargs):
         if diffs.any().any():
             print(f'Columns exceeding {error} error:\n{diffs.any()}')
 
-    range_ = pd.read_csv(f'{out}/range.csv')
-    X_ = X_ * (range_.iloc[1] - range_.iloc[0] + EPS) + range_.iloc[0]
+    minmax = pd.read_csv(f'{out}/minmax.csv')
+    X_ = X_ * (minmax.iloc[1] - minmax.iloc[0]) + minmax.iloc[0]
     X_.to_csv(out[1:] if output is None else output, index=False)
     os.system(f'rm -rf {out}')
 
